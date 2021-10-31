@@ -171,7 +171,11 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent) {
 			utils.ReplaceText(manifest, "###ZARF_SECRET###", gitSecret)
 		}
 
-		k8s.GitopsProcess(tempPath.manifests, time.Now().Format(time.RFC3339Nano))
+		if config.IsZarfInitConfig() {
+			utils.CreatePathAndCopy(tempPath.manifests, config.K3sManifestPath)
+		} else {
+			k8s.GitopsProcess(tempPath.manifests, time.Now().Format(time.RFC3339Nano))
+		}
 	}
 
 	if len(assets.Repos) > 0 {

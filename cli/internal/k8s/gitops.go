@@ -75,12 +75,13 @@ func (syncSettings *settings) parseManifests() ([]*unstructured.Unstructured, er
 
 func GitopsProcess(path string, revision string) {
 
-	syncSettings := settings{path}
-
+	logContext := logrus.WithField("manifest", path)
 	namespace := ""
 	prune := true
+	syncSettings := settings{path}
 	restConfig := getRestConfig()
 
+	logContext.Info("Caching cluster state data")
 	clusterCache := cache.NewClusterCache(restConfig,
 		cache.SetPopulateResourceInfoHandler(func(un *unstructured.Unstructured, isRoot bool) (info interface{}, cacheManifest bool) {
 			// store gc mark of every resource
@@ -91,13 +92,15 @@ func GitopsProcess(path string, revision string) {
 			return
 		}),
 	)
+	logContext.Info("new engine")
 	gitOpsEngine := engine.NewEngine(restConfig, clusterCache)
 
+	logContext.Info("engine run")
 	cleanup, _ := gitOpsEngine.Run()
 
-	defer cleanup()
-
 	for syncCount := 0; syncCount < 20; syncCount++ {
+
+		logrus.Infof("Sync count %s", syncCount)
 
 		target, err := syncSettings.parseManifests()
 		if err != nil {
@@ -106,21 +109,32 @@ func GitopsProcess(path string, revision string) {
 			continue
 		}
 
-		result, err := gitOpsEngine.Sync(context.Background(), target, func(r *cache.Resource) bool {
-			return r.Info.(*resourceInfo).gcMark == syncSettings.getGCMark(r.ResourceKey())
-		}, revision, namespace, sync.WithPrune(prune))
+		result, err := gitOpsEngine.Sync(
+			context.Background(),
+			target,
+			func(r *cache.Resource) bool {
+				return r.Info.(*resourceInfo).gcMark == syncSettings.getGCMark(r.ResourceKey())
+			},
+			revision,
+			namespace,
+			sync.WithPrune(prune),
+			sync.WithManifestValidation(true),
+		)
+
 		if err != nil {
 			logrus.Error(err, "Failed to synchronize cluster state")
 			time.Sleep(3 * time.Second)
 			continue
 		}
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintf(w, "RESOURCE\tRESULT\n")
+
 		for _, res := range result {
-			_, _ = fmt.Fprintf(w, "%s\t%s\n", res.ResourceKey.String(), res.Message)
+			logrus.WithField("result", res.Message).Info(res.ResourceKey.String())
 		}
-		_ = w.Flush()
 		break
 	}
+
+	logContext.Info("Sync operations complete")
+	cleanup()
+	
 
 }
