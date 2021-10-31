@@ -1,4 +1,4 @@
-package utils
+package pki
 
 import (
 	"crypto/rand"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/defenseunicorns/zarf/cli/config"
 	"github.com/defenseunicorns/zarf/cli/internal/k8s"
+	"github.com/defenseunicorns/zarf/cli/internal/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -33,25 +34,6 @@ const org = "Zarf Cluster"
 // 13 months is the max length allowed by browsers
 const validFor = time.Hour * 24 * 375
 
-// Very limited special chars for git / basic auth
-// https://owasp.org/www-community/password-special-characters has complete list of safe chars
-const randomStringChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!~-"
-
-func RandomString(length int) string {
-	bytes := make([]byte, length)
-
-	if _, err := rand.Read(bytes); err != nil {
-		logrus.Debug(err)
-		logrus.Fatal("unable to generate a random secret")
-	}
-
-	for i, b := range bytes {
-		bytes[i] = randomStringChars[b%byte(len(randomStringChars))]
-	}
-
-	return string(bytes)
-}
-
 func HandlePKI(config PKIConfig) {
 	if config.CertPublicPath != "" && config.CertPrivatePath != "" {
 		logrus.WithFields(logrus.Fields{
@@ -68,7 +50,7 @@ func HandlePKI(config PKIConfig) {
 func GeneratePKI(config PKIConfig) {
 	directory := "zarf-pki"
 
-	_ = CreateDirectory(directory, 0700)
+	_ = utils.CreateDirectory(directory, 0700)
 	caFile := filepath.Join(directory, "zarf-ca.crt")
 	ca, caKey, err := generateCA(caFile, validFor)
 	if err != nil {
@@ -108,16 +90,16 @@ func addCAToTrustStore(caFilePath string) {
 	rhelBinary := "update-ca-trust"
 	debianBinary := "update-ca-certificates"
 
-	if VerifyBinary(rhelBinary) {
-		CreatePathAndCopy(caFilePath, "/etc/pki/ca-trust/source/anchors/zarf-ca.crt")
-		_, err := ExecCommand(nil, rhelBinary, "extract")
+	if utils.VerifyBinary(rhelBinary) {
+		utils.CreatePathAndCopy(caFilePath, "/etc/pki/ca-trust/source/anchors/zarf-ca.crt")
+		_, err := utils.ExecCommand(nil, rhelBinary, "extract")
 		if err != nil {
 			logrus.Debug(err)
 			logrus.Warn("Error adding the ephemeral CA to the RHEL root trust")
 		}
-	} else if VerifyBinary(debianBinary) {
-		CreatePathAndCopy(caFilePath, "/usr/local/share/ca-certificates/extra/zarf-ca.crt")
-		_, err := ExecCommand(nil, debianBinary)
+	} else if utils.VerifyBinary(debianBinary) {
+		utils.CreatePathAndCopy(caFilePath, "/usr/local/share/ca-certificates/extra/zarf-ca.crt")
+		_, err := utils.ExecCommand(nil, debianBinary)
 		if err != nil {
 			logrus.Debug(err)
 			logrus.Warn("Error adding the ephemeral CA to the trust store")

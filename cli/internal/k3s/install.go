@@ -6,12 +6,13 @@ import (
 	"github.com/defenseunicorns/zarf/cli/config"
 	"github.com/defenseunicorns/zarf/cli/internal/git"
 	"github.com/defenseunicorns/zarf/cli/internal/packager"
+	"github.com/defenseunicorns/zarf/cli/internal/pki"
 	"github.com/defenseunicorns/zarf/cli/internal/utils"
 	"github.com/sirupsen/logrus"
 )
 
 type InstallOptions struct {
-	PKI        utils.PKIConfig
+	PKI        pki.PKIConfig
 	Confirmed  bool
 	Components string
 }
@@ -33,7 +34,7 @@ func Install(options InstallOptions) {
 
 	createK3sSymlinks()
 
-	utils.HandlePKI(options.PKI)
+	pki.HandlePKI(options.PKI)
 
 	gitSecret := git.GetOrCreateZarfSecret()
 

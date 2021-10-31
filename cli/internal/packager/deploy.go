@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/defenseunicorns/zarf/cli/config"
 	"github.com/defenseunicorns/zarf/cli/internal/git"
@@ -115,6 +116,7 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent) {
 	} else {
 		assets.Name = "core"
 	}
+
 	if len(assets.Files) > 0 {
 		logrus.Info("Loading files for local install")
 		for index, file := range assets.Files {
@@ -169,7 +171,7 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent) {
 			utils.ReplaceText(manifest, "###ZARF_SECRET###", gitSecret)
 		}
 
-		utils.CreatePathAndCopy(tempPath.manifests, config.K3sManifestPath)
+		k8s.GitopsProcess(tempPath.manifests, time.Now().Format(time.RFC3339Nano))
 	}
 
 	if len(assets.Repos) > 0 {
