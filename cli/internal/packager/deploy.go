@@ -15,6 +15,7 @@ import (
 	"github.com/mholt/archiver/v3"
 	"github.com/otiai10/copy"
 	"github.com/sirupsen/logrus"
+	"helm.sh/helm/v3/pkg/releaseutil"
 )
 
 func Deploy(packageName string, confirm bool, componentRequest string) {
@@ -124,7 +125,7 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent) {
 				utils.ValidateSha256Sum(file.Shasum, sourceFile)
 			}
 			err := copy.Copy(sourceFile, file.Target)
-			if err != nil {
+			if err != nil {	
 				logrus.Debug(err)
 				logrus.WithField("file", file.Target).Fatal("Unable to copy the contents of the asset")
 			}
@@ -162,14 +163,31 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent) {
 
 		// Get a list of all the k3s manifest files
 		manifests := utils.RecursiveFileList(tempPath.manifests)
+		manifestMap := make(map[string]string)
 
 		// Iterate through all the manifests and replace any ZARF_SECRET values
 		for _, manifest := range manifests {
-			logrus.WithField("path", manifest).Info("Processing manifest file")
 			utils.ReplaceText(manifest, "###ZARF_SECRET###", gitSecret)
+			contents, _ := k8s.ReadFile(manifest)
+			manifestMap[manifest] = string(contents)
 		}
 
-		utils.CreatePathAndCopy(tempPath.manifests, config.K3sManifestPath)
+		if config.IsZarfInitConfig() {
+			// Init config will still require seeding into k3s before boto for now
+			utils.CreatePathAndCopy(tempPath.manifests, config.K3sManifestPath)
+		} else {
+			// Make sure the HelmChart kind is applied in the right order (temporary)
+			manifestOrderByKind := append([]string{releaseutil.InstallOrder[0]}, releaseutil.InstallOrder...)
+			manifestOrderByKind[1] = "HelmChart"
+			// Not an init config, so use helm to deploy manifests
+			_, sortedManifests, err := releaseutil.SortManifests(manifestMap, nil, manifestOrderByKind)
+			if err != nil {
+				logrus.Fatal("Problem encountered sorting K8s manifests")
+			}
+			for _, manifest := range sortedManifests {
+				k8s.ApplyManifest(manifest)
+			}
+		}
 	}
 
 	if len(assets.Repos) > 0 {
