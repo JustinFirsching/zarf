@@ -168,8 +168,11 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent) {
 			logrus.WithField("path", manifest).Info("Processing manifest file")
 			utils.ReplaceText(manifest, "###ZARF_SECRET###", gitSecret)
 		}
-
-		utils.CreatePathAndCopy(tempPath.manifests, config.K3sManifestPath)
+		if config.IsZarfInitConfig() {
+			utils.CreatePathAndCopy(tempPath.manifests, config.K3sManifestPath)
+		} else {
+			k8s.GitopsProcess(tempPath.manifests)
+		}
 	}
 
 	if len(assets.Repos) > 0 {
