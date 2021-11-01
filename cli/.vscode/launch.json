@@ -14,8 +14,8 @@
             "args": [
                 "package",
                 "deploy",
-                "zarf-package-kafka-strimzi-demo.tar.zst",
-                "--components=kafka-tools",
+                "zarf-package-appliance-demo-doom.tar.zst",
+                // "--components=kafka-tools",
                 "--confirm"
             ]
         },

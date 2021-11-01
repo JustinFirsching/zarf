@@ -8,11 +8,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/releaseutil"
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const applyTimeout = time.Minute * 2
-const waitInterval = 10 * time.Second
+const waitInterval = 5 * time.Second
 
 func ApplyManifest(manifest releaseutil.Manifest) {
 	logContext := logrus.WithFields(logrus.Fields{
@@ -27,30 +26,48 @@ func ApplyManifest(manifest releaseutil.Manifest) {
 
 	manifestContent := strings.NewReader(manifest.Content)
 
-	stopChannel := make(chan struct{})
+	for syncCount := 0; syncCount < 20; syncCount++ {
 
-	wait.Until(func() {
+		logrus.Infof("Manifest apply attempt %d of 20", syncCount+1)
+
+		// Be slightly elastic in how the delays are handled
+		if syncCount > 2 {
+			logContext.Info("Sleeping 5 seconds before processing manifest again")
+			time.Sleep(waitInterval)
+		} else {
+			time.Sleep(1 * time.Second)
+		}
 
 		resources, err := kubeClient.Build(manifestContent, true)
 		if err != nil {
-			return
+			// Expect this is related to a lack of a CRD being ready or some cluster connection issue
+			logContext.Debug(err)
+			logContext.Warn("Unable to process the manifest")
+			continue
 		}
 
-		_, err = kubeClient.Update(resources, resources, true)
+		// Attempt to create/update the manifest
+		result, err := kubeClient.Update(resources, resources, true)
+		logContext.Debug(result)
+
 		if err != nil {
+			logContext.Debug(err)
 			logContext.Warn("Unable to apply the manifest file")
-			return
+			continue
 		}
 
-		if waitErr := kubeClient.Wait(resources, applyTimeout); waitErr != nil {
-			logContext.Warn(waitErr)
-			return
+		// Only wait if there is something to wait for
+		if len(result.Created) > 0 || len(result.Updated) > 0 {
+			logContext.Info("Waiting for resources to be created")
+			if waitErr := kubeClient.WatchUntilReady(resources, applyTimeout); waitErr != nil {
+				logContext.Debug(waitErr)
+				logContext.Warn("Problem waiting for manifest to apply")
+				continue
+			}
 		}
 
-		close(stopChannel)
-
-	}, waitInterval, stopChannel)
-
+		break
+	}
 }
 
 func debug(format string, v ...interface{}) {

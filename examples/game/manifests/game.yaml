@@ -43,7 +43,6 @@ kind: Service
 metadata:
   name: game
 spec:
-  type: ClusterIP
   selector:
     app: game
   ports:
