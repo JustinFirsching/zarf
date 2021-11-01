@@ -1,15 +1,14 @@
 package k8s
 
+// Mostly taken from https://github.com/argoproj/gitops-engine/blob/master/agent/main.go
+
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/argoproj/gitops-engine/pkg/cache"
@@ -92,15 +91,13 @@ func GitopsProcess(path string, revision string) {
 			return
 		}),
 	)
-	logContext.Info("new engine")
 	gitOpsEngine := engine.NewEngine(restConfig, clusterCache)
 
-	logContext.Info("engine run")
-	cleanup, _ := gitOpsEngine.Run()
+	ctx, done := context.WithCancel(context.Background())
 
 	for syncCount := 0; syncCount < 20; syncCount++ {
 
-		logrus.Infof("Sync count %s", syncCount)
+		logrus.Infof("Sync attempt %d of 20", syncCount+1)
 
 		target, err := syncSettings.parseManifests()
 		if err != nil {
@@ -110,7 +107,7 @@ func GitopsProcess(path string, revision string) {
 		}
 
 		result, err := gitOpsEngine.Sync(
-			context.Background(),
+			ctx,
 			target,
 			func(r *cache.Resource) bool {
 				return r.Info.(*resourceInfo).gcMark == syncSettings.getGCMark(r.ResourceKey())
@@ -134,7 +131,6 @@ func GitopsProcess(path string, revision string) {
 	}
 
 	logContext.Info("Sync operations complete")
-	cleanup()
-	
+	done()
 
 }
