@@ -8,9 +8,11 @@ type ZarfFile struct {
 }
 
 type ZarfChart struct {
-	Name    string `yaml:"name"`
-	Url     string `yaml:"url"`
-	Version string `yaml:"version"`
+	Name      string `yaml:"name"`
+	Url       string `yaml:"url"`
+	Version   string `yaml:"version"`
+	Namespace string `yaml:"namespace"`
+	Values    string `yaml:"values"`
 }
 
 type ZarfComponent struct {

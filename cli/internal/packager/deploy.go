@@ -61,7 +61,7 @@ func Deploy(packageName string, confirm bool, componentRequest string) {
 	// Deploy all of the components
 	for _, component := range componentsToDeploy {
 		componentPath := createComponentPaths(tempPath.components, component)
-		deployComponents(componentPath, component)
+		deployComponents(componentPath, component, config.GetMetaData())
 	}
 
 	if !config.IsZarfInitConfig() {
@@ -109,7 +109,7 @@ func Deploy(packageName string, confirm bool, componentRequest string) {
 	cleanup(tempPath)
 }
 
-func deployComponents(tempPath componentPaths, assets config.ZarfComponent) {
+func deployComponents(tempPath componentPaths, assets config.ZarfComponent, packageMetadata config.ZarfMetatdata) {
 	if assets.Name != "" {
 		// Only log this for named components
 		logrus.WithField("name", assets.Name).Info("Deploying Zarf component")
@@ -138,9 +138,12 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent) {
 	if len(assets.Charts) > 0 {
 		logrus.Info("Loading charts for local install")
 		for _, chart := range assets.Charts {
-			sourceTarball := helm.StandardName(tempPath.charts, chart)
-			destinationTarball := helm.StandardName(config.K3sChartPath, chart)
-			utils.CreatePathAndCopy(sourceTarball, destinationTarball)
+			helm.InstallChart(helm.ChartOptions{
+				BasePath:      tempPath.base,
+				PackageName:   packageMetadata.Name,
+				ComponentName: assets.Name,
+				Chart:         chart,
+			})
 		}
 	}
 

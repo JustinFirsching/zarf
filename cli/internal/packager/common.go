@@ -14,6 +14,7 @@ type componentPaths struct {
 	base      string
 	files     string
 	charts    string
+	values    string
 	images    string
 	repos     string
 	manifests string
@@ -43,6 +44,7 @@ func createComponentPaths(basePath string, component config.ZarfComponent) compo
 		images:    basePath + "/images-component-" + component.Name + ".tar",
 		repos:     basePath + "/repos",
 		manifests: basePath + "/manifests",
+		values:    basePath + "/values",
 	}
 }
 

@@ -70,12 +70,17 @@ func addLocalAssets(tempPath componentPaths, assets config.ZarfComponent) {
 	if len(assets.Charts) > 0 {
 		logrus.Info("Loading static helm charts")
 		utils.CreateDirectory(tempPath.charts, 0700)
+		utils.CreateDirectory(tempPath.values, 0700)
 		for _, chart := range assets.Charts {
 			isGitURL, _ := regexp.MatchString("\\.git$", chart.Url)
 			if isGitURL {
 				helm.DownloadChartFromGit(chart, tempPath.charts)
 			} else {
 				helm.DownloadPublishedChart(chart, tempPath.charts)
+			}
+			if chart.Values != "" {
+				chartValueName := helm.StandardName(tempPath.values, chart)
+				utils.CreatePathAndCopy(chart.Values, chartValueName)
 			}
 		}
 	}

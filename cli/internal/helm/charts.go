@@ -1,6 +1,8 @@
 package helm
 
 import (
+	"crypto/md5"
+	"fmt"
 	"os"
 
 	"github.com/defenseunicorns/zarf/cli/config"
@@ -11,10 +13,68 @@ import (
 
 	"strings"
 
+	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/downloader"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/repo"
 )
+
+type ChartOptions struct {
+	BasePath      string
+	PackageName   string
+	ComponentName string
+	Chart         config.ZarfChart
+}
+
+func InstallChart(options ChartOptions) {
+
+	logContext := logrus.WithFields(logrus.Fields{
+		"Chart":   options.Chart.Name,
+		"URL":     options.Chart.Url,
+		"Version": options.Chart.Version,
+	})
+	logrus.SetLevel(logrus.TraceLevel)
+	logContext.Info("Processing helm chart")
+
+	// Get the path the temporary helmchart tarball
+	sourceTarball := StandardName(options.BasePath+"/charts", options.Chart) + ".tgz"
+
+	// Initialize helm SDK
+	actionConfig := new(action.Configuration)
+	settings := cli.New()
+
+	// Setup K8s connection
+	if err := actionConfig.Init(settings.RESTClientGetter(), options.Chart.Namespace, "", logrus.Debugf); err != nil {
+		logContext.Debug(err)
+		logContext.Fatal("Unable to initialize the K8s client")
+	}
+
+	// Bind the helm action 
+	client := action.NewInstall(actionConfig)
+
+	// Generate an MD5 for the chart name to avoid helm 53 char limit but also not cause issues on future updates to packages
+	md5ChartName := fmt.Sprintf("%x", md5.Sum([]byte(options.PackageName+options.ComponentName+options.Chart.Name)))
+	client.ReleaseName = "zarf-release-" + md5ChartName
+
+	// Namespace must be specified
+	client.Namespace = options.Chart.Namespace
+
+	// Load the chart tarball
+	chart, err := loader.Load(sourceTarball)
+	if err != nil {
+		logContext.Debug(err)
+		logContext.Fatal("Unable to load the helm chart")
+	}
+
+	// Perform the chart installation
+	releaser, err := client.Run(chart, chart.Values)
+	logContext.Debug(releaser)
+	if err != nil {
+		logContext.Debug(err)
+		logContext.Fatal("Unable to install the helm chart")
+	}
+
+}
 
 func DownloadChartFromGit(chart config.ZarfChart, destination string) {
 	logContext := logrus.WithFields(logrus.Fields{
@@ -78,11 +138,11 @@ func DownloadPublishedChart(chart config.ZarfChart, destination string) {
 	}
 
 	// Ensure the name is consistent for deployments
-	destinationTarball := StandardName(destination, chart)
+	destinationTarball := StandardName(destination, chart) + ".tgz"
 	os.Rename(saved, destinationTarball)
 }
 
 // StandardName generates a predictable full path for a helm chart for Zarf
-func StandardName(destintation string, chart config.ZarfChart) string {
-	return destintation + "/" + chart.Name + "-" + chart.Version + ".tgz"
+func StandardName(destination string, chart config.ZarfChart) string {
+	return destination + "/" + chart.Name + "-" + chart.Version
 }
