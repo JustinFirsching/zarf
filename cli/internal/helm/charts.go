@@ -1,8 +1,6 @@
 package helm
 
 import (
-	"crypto/md5"
-	"fmt"
 	"os"
 
 	"github.com/defenseunicorns/zarf/cli/config"
@@ -21,8 +19,6 @@ import (
 
 type ChartOptions struct {
 	BasePath      string
-	PackageName   string
-	ComponentName string
 	Chart         config.ZarfChart
 }
 
@@ -49,15 +45,17 @@ func InstallChart(options ChartOptions) {
 		logContext.Fatal("Unable to initialize the K8s client")
 	}
 
-	// Bind the helm action 
+	// Bind the helm action
 	client := action.NewInstall(actionConfig)
 
-	// Generate an MD5 for the chart name to avoid helm 53 char limit but also not cause issues on future updates to packages
-	md5ChartName := fmt.Sprintf("%x", md5.Sum([]byte(options.PackageName+options.ComponentName+options.Chart.Name)))
-	client.ReleaseName = "zarf-release-" + md5ChartName
+	// Must be unique per-namespace and < 53 characters. @todo: restrict helm chart name to this
+	client.ReleaseName = options.Chart.Name
 
 	// Namespace must be specified
 	client.Namespace = options.Chart.Namespace
+
+	// Need to create the namespace if it doesn't exist
+	client.CreateNamespace = true
 
 	// Load the chart tarball
 	chart, err := loader.Load(sourceTarball)
@@ -66,6 +64,7 @@ func InstallChart(options ChartOptions) {
 		logContext.Fatal("Unable to load the helm chart")
 	}
 
+	// @todo: merge chart values from ZarfChart
 	// Perform the chart installation
 	releaser, err := client.Run(chart, chart.Values)
 	logContext.Debug(releaser)
