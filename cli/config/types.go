@@ -1,10 +1,11 @@
 package config
 
 type ZarfFile struct {
-	Source     string `yaml:"source"`
-	Shasum     string `yaml:"shasum"`
-	Target     string `yaml:"target"`
-	Executable bool   `yaml:"executable"`
+	Source     string   `yaml:"source"`
+	Shasum     string   `yaml:"shasum"`
+	Target     string   `yaml:"target"`
+	Executable bool     `yaml:"executable"`
+	Symlinks   []string `yaml:"symlinks"`
 }
 
 type ZarfChart struct {
@@ -25,6 +26,10 @@ type ZarfComponent struct {
 	Repos       []string    `yaml:"repos"`
 	Charts      []ZarfChart `yaml:"charts"`
 	Files       []ZarfFile  `yaml:"files"`
+	Scripts     struct {
+		PreDeploy  []string `yaml:"preDeploy"`
+		PostDeploy []string `yaml:"postDeploy"`
+	} `yaml:"scripts"`
 }
 
 type ZarfMetatdata struct {

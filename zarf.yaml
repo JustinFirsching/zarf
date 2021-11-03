@@ -5,18 +5,34 @@ components:
     description: "Install K3s"
     required: true
     manifests: assets/manifests/common
+    scripts:
+      postDeploy:
+        - "systemctl daemon-reload"
+        - "systemctl enable --now k3s"
+        - "sleep 10"
     files:
       - source: https://github.com/k3s-io/k3s/releases/download/v1.21.2+k3s1/k3s
         shasum: 5097d515e220f8e97ab13c56cb9142ee4526b4c9eade5ed098e2906c1db2a163
-        target: "/usr/local/bin/k3s"
+        target: /usr/local/bin/k3s
         executable: true
+        symlinks:
+          - /usr/local/bin/kubectl
+          - /usr/local/bin/ctr
+          - /usr/local/bin/crictl
       - source: assets/scripts/k3s-remove.sh
-        target: "/usr/local/bin/k3s-remove.sh"
+        target: /usr/local/bin/k3s-remove.sh
         executable: true
       - source: assets/scripts/k3s.service
-        target: "/etc/systemd/system/k3s.service"
+        target: /etc/systemd/system/k3s.service
+        symlinks:
+          - /etc/systemd/system/multi-user.target.wants/k3s.service
       - source: assets/misc/registries.yaml
-        target: "/etc/rancher/k3s/registries.yaml"
+        target: /etc/rancher/k3s/registries.yaml
+        # Mock file for creating the kube config symlink
+      - source: assets/misc/empty-file
+        target: /etc/rancher/k3s/k3s.yaml
+        symlinks:
+          - /root/.kube/config
     images:
       # K3s images
       - docker.io/rancher/coredns-coredns:1.8.3
@@ -44,10 +60,10 @@ components:
     files:
       - source: https://zarf-public.s3-us-gov-west-1.amazonaws.com/k9s_Linux_x86_64_v0_24_11
         shasum: 18a5a33bbf58cb228e56a03380dcb6b9bb8624acab4ff63deb7364dc15d3c03f
-        target: "/usr/local/bin/k9s"
+        target: /usr/local/bin/k9s
         executable: true
       - source: assets/misc/k9s-theme.yaml
-        target: "/root/.k9s/skin.yml"
+        target: /root/.k9s/skin.yml
 
   - name: logging
     description: "Add Promtail, Grafana and Loki (PGL) to this cluster for log monitoring."

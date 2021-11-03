@@ -61,7 +61,7 @@ func Deploy(packageName string, confirm bool, componentRequest string) {
 	// Deploy all of the components
 	for _, component := range componentsToDeploy {
 		componentPath := createComponentPaths(tempPath.components, component)
-		deployComponents(componentPath, component, config.GetMetaData())
+		deployComponents(componentPath, component)
 	}
 
 	if !config.IsZarfInitConfig() {
@@ -109,7 +109,7 @@ func Deploy(packageName string, confirm bool, componentRequest string) {
 	cleanup(tempPath)
 }
 
-func deployComponents(tempPath componentPaths, assets config.ZarfComponent, packageMetadata config.ZarfMetatdata) {
+func deployComponents(tempPath componentPaths, assets config.ZarfComponent) {
 	if assets.Name != "" {
 		// Only log this for named components
 		logrus.WithField("name", assets.Name).Info("Deploying Zarf component")
@@ -117,19 +117,46 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent, pack
 		assets.Name = "core"
 	}
 
+	if len(assets.Scripts.PreDeploy) > 0 {
+		for _, script := range assets.Scripts.PreDeploy {
+			_, err := utils.ExecCommand(nil, "sh", "-c", script)
+			if err != nil {
+				logrus.Debug(err)
+				logrus.WithField("script", script).Fatal("Unable to run the pre-deploy script")
+			}
+		}
+	}
+
 	if len(assets.Files) > 0 {
 		logrus.Info("Loading files for local install")
 		for index, file := range assets.Files {
 			sourceFile := tempPath.files + "/" + strconv.Itoa(index)
+
 			// If a shasum is specified check it again on deployment as well
 			if file.Shasum != "" {
 				utils.ValidateSha256Sum(file.Shasum, sourceFile)
 			}
+
+			// Copy the file to the destination
 			err := copy.Copy(sourceFile, file.Target)
 			if err != nil {
 				logrus.Debug(err)
 				logrus.WithField("file", file.Target).Fatal("Unable to copy the contents of the asset")
 			}
+
+			for _, link := range file.Symlinks {
+				// Try to remove the filepath if it exists
+				_ = os.RemoveAll(link)
+				// Make sure the parent directory exists
+				utils.CreateFilePath(link)
+				// Create the symlink
+				err := os.Symlink(file.Target, link)
+				if err != nil {
+					logrus.Debug(err)
+					logrus.WithField("target", link).Fatal("Unable to create the symbolic link")
+				}
+			}
+
 			// Cleanup now to reduce disk pressure
 			_ = os.RemoveAll(sourceFile)
 		}
@@ -139,10 +166,8 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent, pack
 		logrus.Info("Loading charts for local install")
 		for _, chart := range assets.Charts {
 			helm.InstallChart(helm.ChartOptions{
-				BasePath:      tempPath.base,
-				PackageName:   packageMetadata.Name,
-				ComponentName: assets.Name,
-				Chart:         chart,
+				BasePath: tempPath.base,
+				Chart:    chart,
 			})
 		}
 	}
@@ -185,5 +210,15 @@ func deployComponents(tempPath componentPaths, assets config.ZarfComponent, pack
 		logrus.Info("Loading git repos for gitops service transfer")
 		// Push all the repos from the extracted archive
 		git.PushAllDirectories(tempPath.repos)
+	}
+
+	if len(assets.Scripts.PostDeploy) > 0 {
+		for _, script := range assets.Scripts.PostDeploy {
+			_, err := utils.ExecCommand(nil, "sh", "-c", script)
+			if err != nil {
+				logrus.Debug(err)
+				logrus.WithField("script", script).Fatal("Unable to run the post-deploy script")
+			}
+		}
 	}
 }
