@@ -23,25 +23,3 @@ spec:
                 name: kevin-docker-registry
                 port:
                   number: 5000
----
-apiVersion: helm.cattle.io/v1
-kind: HelmChart
-metadata:
-  name: kevin
-  namespace: registry
-spec:
-  chart: https://%{KUBERNETES_API}%/static/charts/docker-registry-1.10.1.tgz
-  targetNamespace: registry
-  valuesContent: |-
-    persistence:
-      enabled: true
-    image:
-      repository: registry1.dso.mil/ironbank/opensource/docker/registry-v2
-      pullPolicy: Never
-    resources:
-      requests:
-        cpu: "100m"
-        memory: "512Mi"
-      limits:
-        cpu: "1"
-        memory: "2Gi"

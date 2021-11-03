@@ -53,6 +53,8 @@ components:
       - name: docker-registry
         url: https://helm.twun.io
         version: 1.10.1
+        namespace: registry
+        values: assets/charts/registry-values.yaml
 
   - name: management
     description: "Add the K9s terminal-based K8s UI for cluster management"
@@ -78,6 +80,8 @@ components:
       - name: loki-stack
         url: https://grafana.github.io/helm-charts
         version: 2.4.1
+        namespace: logging
+        values: assets/charts/pgl-values.yaml
 
   - name: gitops-service
     description: "Add Gitea for serving gitops-based clusters in an airgap"
@@ -88,3 +92,5 @@ components:
       - name: gitea
         url: https://dl.gitea.io/charts
         version: 2.2.5
+        namespace: git
+        values: assets/charts/registry-values.yaml
